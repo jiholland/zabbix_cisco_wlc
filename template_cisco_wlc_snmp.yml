@@ -1,0 +1,217 @@
+zabbix_export:
+  version: '7.0'
+  template_groups:
+    - uuid: 57b7ae836ca64446ba2c296389c009b7
+      name: Templates/Modules
+  templates:
+    - uuid: 2361f5843d4340028a9177f1083b277a
+      template: 'Cisco Catalyst WLC by SNMP'
+      name: 'Cisco Catalyst WLC by SNMP'
+      description: |
+        Template for monitoring Cisco Catalyst 9K Wireless LAN Controller by SNMP.
+        
+        Jorn Ivar Holland
+      groups:
+        - name: Templates/Modules
+      items:
+        - uuid: 0239c84bcee24b3188f90aa2313a1302
+          name: 'SNMP walk accesspoints'
+          type: SNMP_AGENT
+          snmp_oid: 'walk[1.3.6.1.4.1.14179.2.2.1.1.3,1.3.6.1.4.1.14179.2.2.1.1.6]'
+          key: accesspoint.walk
+          history: '0'
+          value_type: TEXT
+          trends: '0'
+          description: |
+            Discover accesspoints:
+            1.3.6.1.4.1.14179.2.2.1.1.3 = ap name
+            1.3.6.1.4.1.14179.2.2.1.1.6 = ap operational state
+          tags:
+            - tag: component
+              value: raw
+        - uuid: f7ae618acec44d56a03ac8dda19b0b6f
+          name: 'HA peer state'
+          type: SNMP_AGENT
+          snmp_oid: 'get[1.3.6.1.4.1.9.9.843.1.3.4.0]'
+          key: ha.PeerHotStandbyEvent
+          trends: '0'
+          description: 'This object represents that the peer has turned hot-standby.'
+          valuemap:
+            name: ha.PeerHotStandbyEvent
+          preprocessing:
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          tags:
+            - tag: component
+              value: 'high availability'
+          triggers:
+            - uuid: 9c45ee2ef50b4dcc97cc485c862a2591
+              expression: 'last(/Cisco Catalyst WLC by SNMP/ha.PeerHotStandbyEvent,#1)<>last(/Cisco Catalyst WLC by SNMP/ha.PeerHotStandbyEvent,#2)'
+              name: 'HA peer state has changed'
+              priority: INFO
+              manual_close: 'YES'
+              tags:
+                - tag: scope
+                  value: availability
+        - uuid: d4c96ea7f0b14d6fa88367bd420781da
+          name: 'HA operational redundancy mode'
+          type: SNMP_AGENT
+          snmp_oid: 'get[1.3.6.1.4.1.9.9.176.1.2.16.0]'
+          key: ha.RedundancyOperMode
+          trends: '0'
+          description: 'Indicate the operational redundancy mode of the device.'
+          valuemap:
+            name: ha.RedundancyOperMode
+          preprocessing:
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          tags:
+            - tag: component
+              value: 'high availability'
+          triggers:
+            - uuid: 53473ee988284412addfdb0eb3ebe669
+              expression: 'last(/Cisco Catalyst WLC by SNMP/ha.RedundancyOperMode,#1)<>8'
+              name: 'HA is not Active/Standby'
+              priority: HIGH
+              tags:
+                - tag: scope
+                  value: availability
+        - uuid: f81e78f37d414961b7a3ebded983179b
+          name: 'Number of connected accesspoints'
+          type: SNMP_AGENT
+          snmp_oid: 'get[1.3.6.1.4.1.9.9.513.1.3.35.0]'
+          key: system.ApConnectCount
+          delay: 5m
+          description: |
+            This object represents the Count of AP's that are connected
+            to the Controller
+          preprocessing:
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          tags:
+            - tag: component
+              value: system
+        - uuid: 7a686448175d45e8819acfb2e5421702
+          name: 'Maximum number of supported accesspoints'
+          type: SNMP_AGENT
+          snmp_oid: 'get[1.3.6.1.4.1.9.9.513.1.3.28.0]'
+          key: system.MaxApsSupported
+          delay: 15m
+          trends: '0'
+          description: |
+            This object represents the maximum number of APs supported by
+            this controller.
+          preprocessing:
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          tags:
+            - tag: component
+              value: system
+      discovery_rules:
+        - uuid: c56d5be2e8cc43d49c2ba8a8013e875e
+          name: 'AP discovery'
+          type: DEPENDENT
+          key: ap.discovery
+          delay: '0'
+          description: 'Discover accesspoints.'
+          item_prototypes:
+            - uuid: a23132b8879e40d296558ddd72b2b10b
+              name: '{#AP_NAME}: Operational State'
+              type: DEPENDENT
+              key: 'ap.state[bsnAPOperationStatus.{#SNMPINDEX}]'
+              delay: '0'
+              trends: '0'
+              description: 'Operation state of the AP.'
+              valuemap:
+                name: AP.OperationStatus
+              preprocessing:
+                - type: SNMP_WALK_VALUE
+                  parameters:
+                    - '1.3.6.1.4.1.14179.2.2.1.1.6.{#SNMPINDEX}'
+                    - '0'
+              master_item:
+                key: accesspoint.walk
+              tags:
+                - tag: accesspoint
+                  value: '{#AP_NAME}'
+                - tag: component
+                  value: accesspoint
+              trigger_prototypes:
+                - uuid: 9f92c1e2c22a4b999e1521d5ab813c9b
+                  expression: 'nodata(/Cisco Catalyst WLC by SNMP/ap.state[bsnAPOperationStatus.{#SNMPINDEX}],6m)=1'
+                  name: '{#AP_NAME} has disconnected from WLC'
+                  priority: HIGH
+                  description: 'AP {#AP_NAME} has no heartbeats.'
+                  tags:
+                    - tag: scope
+                      value: availability
+                - uuid: fcb5f2d232e8482f97b5ac1ccfe88cd3
+                  expression: 'last(/Cisco Catalyst WLC by SNMP/ap.state[bsnAPOperationStatus.{#SNMPINDEX}])=2'
+                  name: '{#AP_NAME} is in operational state disassociating'
+                  priority: AVERAGE
+                  description: 'AP {#AP_NAME} is disassociating from the WLC.'
+                  tags:
+                    - tag: scope
+                      value: availability
+                - uuid: a2109e151ff74fb2807f76fbd397ca84
+                  expression: 'last(/Cisco Catalyst WLC by SNMP/ap.state[bsnAPOperationStatus.{#SNMPINDEX}])=3'
+                  name: '{#AP_NAME} is in operational state downloading'
+                  priority: WARNING
+                  description: 'AP {#AP_NAME} is downloading firmware from the WLC.'
+                  tags:
+                    - tag: scope
+                      value: availability
+          master_item:
+            key: accesspoint.walk
+          preprocessing:
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+            - type: SNMP_WALK_TO_JSON
+              parameters:
+                - '{#AP_NAME}'
+                - 1.3.6.1.4.1.14179.2.2.1.1.3
+                - '0'
+      tags:
+        - tag: class
+          value: network
+        - tag: target
+          value: cisco
+        - tag: target
+          value: cisco-wlc
+      valuemaps:
+        - uuid: 7e555ebdcb804c4cb9c4e65749d3e462
+          name: AP.OperationStatus
+          mappings:
+            - value: '1'
+              newvalue: associated
+            - value: '2'
+              newvalue: disassociating
+            - value: '3'
+              newvalue: downloading
+        - uuid: 6421959e2f7548fb81479eba69b887fe
+          name: ha.PeerHotStandbyEvent
+          mappings:
+            - value: '0'
+              newvalue: Active
+            - value: '1'
+              newvalue: 'Standby Hot'
+        - uuid: d159f942acbe4451b6fd28e7c67dab08
+          name: ha.RedundancyOperMode
+          mappings:
+            - value: '1'
+              newvalue: 'Non redundant'
+            - value: '8'
+              newvalue: sso
+  triggers:
+    - uuid: 5f9f887183134057b85ad09d2fd2fe26
+      expression: 'last(/Cisco Catalyst WLC by SNMP/system.MaxApsSupported)=last(/Cisco Catalyst WLC by SNMP/system.ApConnectCount)'
+      name: 'The maximum number of supported accesspoints has been reached'
+      priority: AVERAGE
+      tags:
+        - tag: scope
+          value: capacity
