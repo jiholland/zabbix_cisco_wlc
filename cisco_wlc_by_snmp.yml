@@ -1,17 +1,18 @@
 zabbix_export:
   version: '7.0'
   template_groups:
-    - uuid: 57b7ae836ca64446ba2c296389c009b7
-      name: Templates/Modules
+    - uuid: 36bff6c29af64692839d077febfc7079
+      name: 'Templates/Network devices'
   templates:
     - uuid: 2361f5843d4340028a9177f1083b277a
       template: 'Cisco WLC by SNMP'
       name: 'Cisco WLC by SNMP'
       description: |
         Template for monitoring Cisco Catalyst 9K Wireless LAN Controller by SNMP.
-        Jorn Ivar Holland
+        
+        Author: Jorn Ivar Holland
       groups:
-        - name: Templates/Modules
+        - name: 'Templates/Network devices'
       items:
         - uuid: 0239c84bcee24b3188f90aa2313a1302
           name: 'SNMP walk accesspoints'
@@ -33,6 +34,7 @@ zabbix_export:
           type: SNMP_AGENT
           snmp_oid: 'get[1.3.6.1.4.1.9.9.843.1.3.4.0]'
           key: ha.PeerHotStandbyEvent
+          history: 15d
           trends: '0'
           description: 'This object represents that the peer has turned hot-standby.'
           valuemap:
@@ -43,21 +45,23 @@ zabbix_export:
                 - 1h
           tags:
             - tag: component
-              value: 'high availability'
+              value: cluster
           triggers:
             - uuid: 9c45ee2ef50b4dcc97cc485c862a2591
               expression: 'last(/Cisco WLC by SNMP/ha.PeerHotStandbyEvent,#1)<>last(/Cisco WLC by SNMP/ha.PeerHotStandbyEvent,#2)'
               name: 'Cisco WLC: HA peer state has changed'
               priority: INFO
+              description: 'HA peer state has changed. Acknowledge to close the problem manually.'
               manual_close: 'YES'
               tags:
                 - tag: scope
-                  value: availability
+                  value: notice
         - uuid: d4c96ea7f0b14d6fa88367bd420781da
           name: 'HA operational redundancy mode'
           type: SNMP_AGENT
           snmp_oid: 'get[1.3.6.1.4.1.9.9.176.1.2.16.0]'
           key: ha.RedundancyOperMode
+          history: 15d
           trends: '0'
           description: 'Indicate the operational redundancy mode of the device.'
           valuemap:
@@ -68,7 +72,7 @@ zabbix_export:
                 - 1h
           tags:
             - tag: component
-              value: 'high availability'
+              value: cluster
           triggers:
             - uuid: 53473ee988284412addfdb0eb3ebe669
               expression: 'last(/Cisco WLC by SNMP/ha.RedundancyOperMode,#1)<>8'
@@ -99,6 +103,7 @@ zabbix_export:
           snmp_oid: 'get[1.3.6.1.4.1.9.9.513.1.3.35.0]'
           key: system.ApConnectCount
           delay: 5m
+          history: 15d
           description: |
             This object represents the Count of AP's that are connected
             to the Controller
@@ -108,13 +113,14 @@ zabbix_export:
                 - 1d
           tags:
             - tag: component
-              value: system
+              value: accesspoint
         - uuid: 7a686448175d45e8819acfb2e5421702
           name: 'Maximum number of supported accesspoints'
           type: SNMP_AGENT
           snmp_oid: 'get[1.3.6.1.4.1.9.9.513.1.3.28.0]'
           key: system.MaxApsSupported
           delay: 15m
+          history: 15d
           trends: '0'
           description: |
             This object represents the maximum number of APs supported by
@@ -125,7 +131,7 @@ zabbix_export:
                 - 1d
           tags:
             - tag: component
-              value: system
+              value: accesspoint
       discovery_rules:
         - uuid: c56d5be2e8cc43d49c2ba8a8013e875e
           name: 'AP discovery'
@@ -139,6 +145,7 @@ zabbix_export:
               type: DEPENDENT
               key: 'ap.state[bsnAPOperationStatus.{#SNMPINDEX}]'
               delay: '0'
+              history: 15d
               trends: '0'
               description: 'Operation state of the AP.'
               valuemap:
@@ -155,11 +162,13 @@ zabbix_export:
                   value: '{#AP_NAME}'
                 - tag: component
                   value: accesspoint
+                - tag: component
+                  value: health
               trigger_prototypes:
                 - uuid: 9f92c1e2c22a4b999e1521d5ab813c9b
                   expression: 'nodata(/Cisco WLC by SNMP/ap.state[bsnAPOperationStatus.{#SNMPINDEX}],6m)=1'
                   name: 'Cisco WLC: {#AP_NAME} has disconnected from WLC'
-                  priority: HIGH
+                  priority: AVERAGE
                   description: 'AP {#AP_NAME} has no heartbeats.'
                   manual_close: 'YES'
                   tags:
@@ -168,7 +177,7 @@ zabbix_export:
                 - uuid: fcb5f2d232e8482f97b5ac1ccfe88cd3
                   expression: 'last(/Cisco WLC by SNMP/ap.state[bsnAPOperationStatus.{#SNMPINDEX}])=2'
                   name: 'Cisco WLC: {#AP_NAME} is in operational state disassociating'
-                  priority: AVERAGE
+                  priority: WARNING
                   description: 'AP {#AP_NAME} is disassociating from the WLC.'
                   tags:
                     - tag: scope
@@ -176,7 +185,7 @@ zabbix_export:
                 - uuid: a2109e151ff74fb2807f76fbd397ca84
                   expression: 'last(/Cisco WLC by SNMP/ap.state[bsnAPOperationStatus.{#SNMPINDEX}])=3'
                   name: 'Cisco WLC: {#AP_NAME} is in operational state downloading'
-                  priority: WARNING
+                  priority: INFO
                   description: 'AP {#AP_NAME} is downloading firmware from the WLC.'
                   tags:
                     - tag: scope
@@ -204,7 +213,7 @@ zabbix_export:
               type: DEPENDENT
               key: 'ssid.clients[bsnDot11EssNumberOfMobileStations.{#SNMPINDEX}]'
               delay: '0'
-              trends: '0'
+              history: 15d
               description: 'No of Mobile Stations currently associated with the WLAN.'
               preprocessing:
                 - type: SNMP_WALK_VALUE
@@ -214,6 +223,8 @@ zabbix_export:
               master_item:
                 key: ssid.walk
               tags:
+                - tag: component
+                  value: ssid
                 - tag: ssid
                   value: '{#SSID_NAME}'
           master_item:
@@ -269,20 +280,16 @@ zabbix_export:
   graphs:
     - uuid: 3e393150cc15486cbd6a6c085c780c13
       name: 'Number of connected accesspoints'
-      yaxismax: '0'
       show_work_period: 'NO'
       show_triggers: 'NO'
-      type: PIE
-      show_3d: 'YES'
+      ymin_type_1: FIXED
+      ymax_type_1: ITEM
+      ymax_item_1:
+        host: 'Cisco WLC by SNMP'
+        key: system.MaxApsSupported
       graph_items:
-        - color: F63100
-          calc_fnc: LAST
+        - drawtype: GRADIENT_LINE
+          color: 00FF00
           item:
             host: 'Cisco WLC by SNMP'
             key: system.ApConnectCount
-        - sortorder: '1'
-          color: 199C0D
-          calc_fnc: MAX
-          item:
-            host: 'Cisco WLC by SNMP'
-            key: system.MaxApsSupported
