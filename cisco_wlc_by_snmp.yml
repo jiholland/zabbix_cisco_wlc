@@ -75,7 +75,7 @@ zabbix_export:
               value: cluster
           triggers:
             - uuid: 53473ee988284412addfdb0eb3ebe669
-              expression: 'last(/Cisco WLC by SNMP/ha.RedundancyOperMode,#1)<>8'
+              expression: 'last(/Cisco WLC by SNMP/ha.RedundancyOperMode)<>8'
               name: 'Cisco WLC: HA is not Active/Standby'
               priority: HIGH
               tags:
@@ -102,18 +102,61 @@ zabbix_export:
           type: SNMP_AGENT
           snmp_oid: 'get[1.3.6.1.4.1.9.9.513.1.3.35.0]'
           key: system.ApConnectCount
-          delay: 5m
           history: 15d
           description: |
             This object represents the Count of AP's that are connected
             to the Controller
-          preprocessing:
-            - type: DISCARD_UNCHANGED_HEARTBEAT
-              parameters:
-                - 1d
           tags:
             - tag: component
               value: accesspoint
+            - tag: component
+              value: health
+          triggers:
+            - uuid: 77dfe68bf1334216a9f0a8f233b0ad41
+              expression: |
+                ((avg(/Cisco WLC by SNMP/system.ApConnectCount,5m)/{$AP_COUNT})*100)<70
+                and
+                {$AP_COUNT}>20
+              name: 'Cisco WLC: More than 30% of the accesspoints has disconnected'
+              priority: AVERAGE
+              description: 'More than 30% of the connected accesspoints has disconnected'
+              dependencies:
+                - name: 'Cisco WLC: More than 50% of the accesspoints has disconnected'
+                  expression: |
+                    ((avg(/Cisco WLC by SNMP/system.ApConnectCount,5m)/{$AP_COUNT})*100)<50
+                    and
+                    {$AP_COUNT}>20
+              tags:
+                - tag: scope
+                  value: availability
+            - uuid: 3d11578ede5245ad9ff8d395e5a726c8
+              expression: |
+                ((avg(/Cisco WLC by SNMP/system.ApConnectCount,5m)/{$AP_COUNT})*100)<50
+                and
+                {$AP_COUNT}>20
+              name: 'Cisco WLC: More than 50% of the accesspoints has disconnected'
+              priority: HIGH
+              description: 'More than 50% of the connected accesspoints has disconnected'
+              dependencies:
+                - name: 'Cisco WLC: More than 90% of the accesspoints has disconnected'
+                  expression: |
+                    ((avg(/Cisco WLC by SNMP/system.ApConnectCount,5m)/{$AP_COUNT})*100)<10
+                    and
+                    {$AP_COUNT}>20
+              tags:
+                - tag: scope
+                  value: availability
+            - uuid: d02004bc95494dda8b5fb39afa2eb9c4
+              expression: |
+                ((avg(/Cisco WLC by SNMP/system.ApConnectCount,5m)/{$AP_COUNT})*100)<10
+                and
+                {$AP_COUNT}>20
+              name: 'Cisco WLC: More than 90% of the accesspoints has disconnected'
+              priority: DISASTER
+              description: 'More than 90% of the connected accesspoints has disconnected'
+              tags:
+                - tag: scope
+                  value: availability
         - uuid: 7a686448175d45e8819acfb2e5421702
           name: 'Maximum number of supported accesspoints'
           type: SNMP_AGENT
@@ -168,9 +211,15 @@ zabbix_export:
                 - uuid: 9f92c1e2c22a4b999e1521d5ab813c9b
                   expression: 'nodata(/Cisco WLC by SNMP/ap.state[bsnAPOperationStatus.{#SNMPINDEX}],6m)=1'
                   name: 'Cisco WLC: {#AP_NAME} has disconnected from WLC'
-                  priority: AVERAGE
+                  priority: WARNING
                   description: 'AP {#AP_NAME} has no heartbeats.'
                   manual_close: 'YES'
+                  dependencies:
+                    - name: 'Cisco WLC: More than 30% of the accesspoints has disconnected'
+                      expression: |
+                        ((avg(/Cisco WLC by SNMP/system.ApConnectCount,5m)/{$AP_COUNT})*100)<70
+                        and
+                        {$AP_COUNT}>20
                   tags:
                     - tag: scope
                       value: availability
@@ -245,6 +294,10 @@ zabbix_export:
           value: cisco
         - tag: target
           value: cisco-wlc
+      macros:
+        - macro: '{$AP_COUNT}'
+          value: '5'
+          description: 'The expected number of connected accesspoints.'
       valuemaps:
         - uuid: 7e555ebdcb804c4cb9c4e65749d3e462
           name: AP.OperationStatus
@@ -273,7 +326,7 @@ zabbix_export:
     - uuid: 5f9f887183134057b85ad09d2fd2fe26
       expression: 'last(/Cisco WLC by SNMP/system.MaxApsSupported)=last(/Cisco WLC by SNMP/system.ApConnectCount)'
       name: 'Cisco WLC: The maximum number of supported accesspoints has been reached'
-      priority: AVERAGE
+      priority: WARNING
       tags:
         - tag: scope
           value: capacity
