@@ -6,9 +6,6 @@ This [template](https://www.zabbix.com/documentation/current/en/manual/xml_expor
 - high availability peer state
 - accesspoint operational state
 - maximum number of supported accesspoints
+- number of clients connected to each ssid
 
-The template uses
-[snmp bulk requests](https://www.zabbix.com/documentation/current/en/manual/config/items/itemtypes/snmp?hl=SNMP%2Cdiscovery#native-snmp-bulk-requests)
-for discovery which require Zabbix version 6.4 or greater.
-
-☕️ Jørn Ivar
+Jørn Ivar (@jiholland)
