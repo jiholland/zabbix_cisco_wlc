@@ -6,5 +6,6 @@ This [template](https://www.zabbix.com/documentation/current/en/manual/xml_expor
 - high availability peer state
 - accesspoint operational state
 - maximum number of supported accesspoints
+- number of clients connected to each ssid
 
-Jørn Ivar
+Jørn Ivar (@jiholland)
