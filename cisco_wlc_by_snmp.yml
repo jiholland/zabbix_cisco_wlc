@@ -1,7 +1,7 @@
 zabbix_export:
   version: '7.0'
   template_groups:
-    - uuid: 4b88c47e59eb4227b173f1399f1db64f
+    - uuid: 36bff6c29af64692839d077febfc7079
       name: 'Templates/Network devices'
   templates:
     - uuid: 2361f5843d4340028a9177f1083b277a
@@ -14,11 +14,67 @@ zabbix_export:
       groups:
         - name: 'Templates/Network devices'
       items:
+        - uuid: d4c96ea7f0b14d6fa88367bd420781da
+          name: 'HA operational redundancy mode'
+          type: SNMP_AGENT
+          snmp_oid: 'get[1.3.6.1.4.1.9.9.176.1.2.16.0]'
+          key: cluster.ha.mode
+          trends: '0'
+          description: 'Indicate the operational redundancy mode of the device.'
+          valuemap:
+            name: 'HA redundancy mode'
+          preprocessing:
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          tags:
+            - tag: component
+              value: cluster
+          triggers:
+            - uuid: 53473ee988284412addfdb0eb3ebe669
+              expression: 'last(/Cisco WLC by SNMP/cluster.ha.mode)<>8'
+              name: 'Cisco WLC: HA is not Active/Standby'
+              opdata: 'Current state: {ITEM.LASTVALUE1}'
+              priority: HIGH
+              description: 'Please check the state of the cluster.'
+              tags:
+                - tag: scope
+                  value: availability
+        - uuid: f7ae618acec44d56a03ac8dda19b0b6f
+          name: 'HA peer state'
+          type: SNMP_AGENT
+          snmp_oid: 'get[1.3.6.1.4.1.9.9.843.1.3.4.0]'
+          key: cluster.ha.state
+          trends: '0'
+          description: 'This object represents that the peer has turned hot-standby.'
+          valuemap:
+            name: 'HA peer state'
+          preprocessing:
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          tags:
+            - tag: component
+              value: cluster
+          triggers:
+            - uuid: 9c45ee2ef50b4dcc97cc485c862a2591
+              expression: 'change(/Cisco WLC by SNMP/cluster.ha.state)'
+              name: 'Cisco WLC: HA peer changed state'
+              opdata: 'Current state: {ITEM.LASTVALUE1}'
+              priority: INFO
+              description: 'HA peer state has changed. Acknowledge to close the problem manually.'
+              manual_close: 'YES'
+              dependencies:
+                - name: 'Cisco WLC: HA is not Active/Standby'
+                  expression: 'last(/Cisco WLC by SNMP/cluster.ha.mode)<>8'
+              tags:
+                - tag: scope
+                  value: notice
         - uuid: 0239c84bcee24b3188f90aa2313a1302
           name: 'SNMP walk access points'
           type: SNMP_AGENT
           snmp_oid: 'walk[1.3.6.1.4.1.14179.2.2.1.1.3,1.3.6.1.4.1.14179.2.2.1.1.6]'
-          key: accesspoint.walk
+          key: wlc.accesspoint.walk
           history: '0'
           value_type: TEXT
           trends: '0'
@@ -29,66 +85,77 @@ zabbix_export:
           tags:
             - tag: component
               value: raw
-        - uuid: f7ae618acec44d56a03ac8dda19b0b6f
-          name: 'HA peer state'
+        - uuid: f81e78f37d414961b7a3ebded983179b
+          name: 'Number of connected access points'
           type: SNMP_AGENT
-          snmp_oid: 'get[1.3.6.1.4.1.9.9.843.1.3.4.0]'
-          key: ha.PeerHotStandbyEvent
-          trends: '0'
-          description: 'This object represents that the peer has turned hot-standby.'
-          valuemap:
-            name: ha.PeerHotStandbyEvent
-          preprocessing:
-            - type: DISCARD_UNCHANGED_HEARTBEAT
-              parameters:
-                - 1h
+          snmp_oid: 'get[1.3.6.1.4.1.9.9.513.1.3.35.0]'
+          key: wlc.ap.count
+          units: '!APs'
+          description: |
+            This object represents the Count of AP's that are connected
+            to the Controller
           tags:
             - tag: component
-              value: cluster
+              value: accesspoint
+            - tag: component
+              value: health
           triggers:
-            - uuid: 9c45ee2ef50b4dcc97cc485c862a2591
-              expression: 'change(/Cisco WLC by SNMP/ha.PeerHotStandbyEvent)'
-              name: 'Cisco WLC: HA peer state has changed'
-              priority: INFO
-              description: 'HA peer state has changed. Acknowledge to close the problem manually.'
-              manual_close: 'YES'
+            - uuid: 77dfe68bf1334216a9f0a8f233b0ad41
+              expression: '((avg(/Cisco WLC by SNMP/wlc.ap.count,5m)/{$AP_COUNT})*100)<70'
+              name: 'Cisco WLC: More than 30% of the access points has disconnected'
+              opdata: 'Current count: {ITEM.LASTVALUE1}'
+              priority: AVERAGE
+              description: 'Please check the access point status.'
               dependencies:
-                - name: 'Cisco WLC: HA is not Active/Standby'
-                  expression: 'last(/Cisco WLC by SNMP/ha.RedundancyOperMode)<>8'
-              tags:
-                - tag: scope
-                  value: notice
-        - uuid: d4c96ea7f0b14d6fa88367bd420781da
-          name: 'HA operational redundancy mode'
-          type: SNMP_AGENT
-          snmp_oid: 'get[1.3.6.1.4.1.9.9.176.1.2.16.0]'
-          key: ha.RedundancyOperMode
-          trends: '0'
-          description: 'Indicate the operational redundancy mode of the device.'
-          valuemap:
-            name: ha.RedundancyOperMode
-          preprocessing:
-            - type: DISCARD_UNCHANGED_HEARTBEAT
-              parameters:
-                - 1h
-          tags:
-            - tag: component
-              value: cluster
-          triggers:
-            - uuid: 53473ee988284412addfdb0eb3ebe669
-              expression: 'last(/Cisco WLC by SNMP/ha.RedundancyOperMode)<>8'
-              name: 'Cisco WLC: HA is not Active/Standby'
-              opdata: 'Current value: {ITEM.LASTVALUE1}'
-              priority: HIGH
-              description: 'Please check the state of the cluster.'
+                - name: 'Cisco WLC: More than 50% of the access points has disconnected'
+                  expression: '((avg(/Cisco WLC by SNMP/wlc.ap.count,5m)/{$AP_COUNT})*100)<50'
               tags:
                 - tag: scope
                   value: availability
+            - uuid: 3d11578ede5245ad9ff8d395e5a726c8
+              expression: '((avg(/Cisco WLC by SNMP/wlc.ap.count,5m)/{$AP_COUNT})*100)<50'
+              name: 'Cisco WLC: More than 50% of the access points has disconnected'
+              opdata: 'Current count: {ITEM.LASTVALUE1}'
+              priority: HIGH
+              description: 'Please check the access point status.'
+              dependencies:
+                - name: 'Cisco WLC: More than 90% of the access points has disconnected'
+                  expression: '((avg(/Cisco WLC by SNMP/wlc.ap.count,5m)/{$AP_COUNT})*100)<10'
+              tags:
+                - tag: scope
+                  value: availability
+            - uuid: d02004bc95494dda8b5fb39afa2eb9c4
+              expression: '((avg(/Cisco WLC by SNMP/wlc.ap.count,5m)/{$AP_COUNT})*100)<10'
+              name: 'Cisco WLC: More than 90% of the access points has disconnected'
+              opdata: 'Current count: {ITEM.LASTVALUE1}'
+              priority: DISASTER
+              description: 'Please check the access point status.'
+              tags:
+                - tag: scope
+                  value: availability
+        - uuid: 7a686448175d45e8819acfb2e5421702
+          name: 'Maximum number of supported access points'
+          type: SNMP_AGENT
+          snmp_oid: 'get[1.3.6.1.4.1.9.9.513.1.3.28.0]'
+          key: wlc.ap.max
+          delay: 15m
+          trends: '0'
+          units: '!APs'
+          description: |
+            This object represents the maximum number of APs supported by
+            this controller.
+          preprocessing:
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          tags:
+            - tag: component
+              value: accesspoint
         - uuid: d21882efbbe64512b7ba4ae78799fbf8
           name: 'SNMP walk ssid'
           type: SNMP_AGENT
           snmp_oid: 'walk[1.3.6.1.4.1.9.9.512.1.1.1.1.3,1.3.6.1.4.1.14179.2.1.1.1.38]'
-          key: ssid.walk
+          key: wlc.ssid.walk
           delay: 10m
           history: '0'
           value_type: TEXT
@@ -100,91 +167,30 @@ zabbix_export:
           tags:
             - tag: component
               value: raw
-        - uuid: f81e78f37d414961b7a3ebded983179b
-          name: 'Number of connected access points'
-          type: SNMP_AGENT
-          snmp_oid: 'get[1.3.6.1.4.1.9.9.513.1.3.35.0]'
-          key: system.ApConnectCount
-          description: |
-            This object represents the Count of AP's that are connected
-            to the Controller
-          tags:
-            - tag: component
-              value: accesspoint
-            - tag: component
-              value: health
-          triggers:
-            - uuid: 77dfe68bf1334216a9f0a8f233b0ad41
-              expression: '((avg(/Cisco WLC by SNMP/system.ApConnectCount,5m)/{$AP_COUNT})*100)<70'
-              name: 'Cisco WLC: More than 30% of the access points has disconnected'
-              priority: AVERAGE
-              description: 'Please check the access point status.'
-              dependencies:
-                - name: 'Cisco WLC: More than 50% of the access points has disconnected'
-                  expression: '((avg(/Cisco WLC by SNMP/system.ApConnectCount,5m)/{$AP_COUNT})*100)<50'
-              tags:
-                - tag: scope
-                  value: availability
-            - uuid: 3d11578ede5245ad9ff8d395e5a726c8
-              expression: '((avg(/Cisco WLC by SNMP/system.ApConnectCount,5m)/{$AP_COUNT})*100)<50'
-              name: 'Cisco WLC: More than 50% of the access points has disconnected'
-              priority: HIGH
-              description: 'Please check the access point status.'
-              dependencies:
-                - name: 'Cisco WLC: More than 90% of the access points has disconnected'
-                  expression: '((avg(/Cisco WLC by SNMP/system.ApConnectCount,5m)/{$AP_COUNT})*100)<10'
-              tags:
-                - tag: scope
-                  value: availability
-            - uuid: d02004bc95494dda8b5fb39afa2eb9c4
-              expression: '((avg(/Cisco WLC by SNMP/system.ApConnectCount,5m)/{$AP_COUNT})*100)<10'
-              name: 'Cisco WLC: More than 90% of the access points has disconnected'
-              priority: DISASTER
-              description: 'Please check the access point status.'
-              tags:
-                - tag: scope
-                  value: availability
-        - uuid: 7a686448175d45e8819acfb2e5421702
-          name: 'Maximum number of supported access points'
-          type: SNMP_AGENT
-          snmp_oid: 'get[1.3.6.1.4.1.9.9.513.1.3.28.0]'
-          key: system.MaxApsSupported
-          delay: 15m
-          trends: '0'
-          description: |
-            This object represents the maximum number of APs supported by
-            this controller.
-          preprocessing:
-            - type: DISCARD_UNCHANGED_HEARTBEAT
-              parameters:
-                - 1d
-          tags:
-            - tag: component
-              value: accesspoint
       discovery_rules:
         - uuid: c56d5be2e8cc43d49c2ba8a8013e875e
           name: 'AP discovery'
           type: DEPENDENT
-          key: ap.discovery
+          key: wlc.ap.discovery
           delay: '0'
           description: 'Discover accesspoints.'
           item_prototypes:
             - uuid: a23132b8879e40d296558ddd72b2b10b
               name: '{#AP_NAME}: Operational State'
               type: DEPENDENT
-              key: 'ap.state[bsnAPOperationStatus.{#SNMPINDEX}]'
+              key: 'wlc.accesspoint.state[bsnAPOperationStatus.{#SNMPINDEX}]'
               delay: '0'
               trends: '0'
               description: 'Operation state of the AP.'
               valuemap:
-                name: AP.OperationStatus
+                name: 'AP operational status'
               preprocessing:
                 - type: SNMP_WALK_VALUE
                   parameters:
                     - '1.3.6.1.4.1.14179.2.2.1.1.6.{#SNMPINDEX}'
                     - '0'
               master_item:
-                key: accesspoint.walk
+                key: wlc.accesspoint.walk
               tags:
                 - tag: accesspoint
                   value: '{#AP_NAME}'
@@ -194,35 +200,31 @@ zabbix_export:
                   value: health
               trigger_prototypes:
                 - uuid: 9f92c1e2c22a4b999e1521d5ab813c9b
-                  expression: 'nodata(/Cisco WLC by SNMP/ap.state[bsnAPOperationStatus.{#SNMPINDEX}],6m)=1'
+                  expression: 'nodata(/Cisco WLC by SNMP/wlc.accesspoint.state[bsnAPOperationStatus.{#SNMPINDEX}],6m)=1'
                   name: 'Cisco WLC: {#AP_NAME} has disconnected from WLC'
                   priority: WARNING
                   description: 'AP {#AP_NAME} has no heartbeats. Acknowledge to close the problem manually.'
                   manual_close: 'YES'
                   dependencies:
                     - name: 'Cisco WLC: More than 30% of the access points has disconnected'
-                      expression: '((avg(/Cisco WLC by SNMP/system.ApConnectCount,5m)/{$AP_COUNT})*100)<70'
-                  tags:
-                    - tag: scope
-                      value: availability
-                - uuid: fcb5f2d232e8482f97b5ac1ccfe88cd3
-                  expression: 'last(/Cisco WLC by SNMP/ap.state[bsnAPOperationStatus.{#SNMPINDEX}])=2'
-                  name: 'Cisco WLC: {#AP_NAME} is in operational state disassociating'
-                  priority: WARNING
-                  description: 'AP {#AP_NAME} is disassociating from the WLC.'
+                      expression: '((avg(/Cisco WLC by SNMP/wlc.ap.count,5m)/{$AP_COUNT})*100)<70'
                   tags:
                     - tag: scope
                       value: availability
                 - uuid: a2109e151ff74fb2807f76fbd397ca84
-                  expression: 'last(/Cisco WLC by SNMP/ap.state[bsnAPOperationStatus.{#SNMPINDEX}])=3'
-                  name: 'Cisco WLC: {#AP_NAME} is in operational state downloading'
-                  priority: INFO
-                  description: 'AP {#AP_NAME} is downloading firmware from the WLC.'
+                  expression: 'last(/Cisco WLC by SNMP/wlc.accesspoint.state[bsnAPOperationStatus.{#SNMPINDEX}])<>1'
+                  name: 'Cisco WLC: {#AP_NAME} is not operational'
+                  opdata: 'Current state: {ITEM.LASTVALUE1}'
+                  priority: WARNING
+                  description: 'Please check the Access Point.'
+                  dependencies:
+                    - name: 'Cisco WLC: {#AP_NAME} has disconnected from WLC'
+                      expression: 'nodata(/Cisco WLC by SNMP/wlc.accesspoint.state[bsnAPOperationStatus.{#SNMPINDEX}],6m)=1'
                   tags:
                     - tag: scope
                       value: availability
           master_item:
-            key: accesspoint.walk
+            key: wlc.accesspoint.walk
           preprocessing:
             - type: DISCARD_UNCHANGED_HEARTBEAT
               parameters:
@@ -235,30 +237,31 @@ zabbix_export:
         - uuid: 24ab1600a37941f196572e0ff4dd3b1f
           name: 'SSID discovery'
           type: DEPENDENT
-          key: ssid.discovery
+          key: wlc.ssid.discovery
           delay: '0'
           description: 'Discover ssid.'
           item_prototypes:
             - uuid: a7bfeeea37914f30a46490b2f7caec16
               name: 'SSID {#SSID_NAME}: number of clients'
               type: DEPENDENT
-              key: 'ssid.clients[bsnDot11EssNumberOfMobileStations.{#SNMPINDEX}]'
+              key: 'wlc.ssid.clients[bsnDot11EssNumberOfMobileStations.{#SNMPINDEX}]'
               delay: '0'
-              description: 'No of Mobile Stations currently associated with the WLAN.'
+              units: '!clients'
+              description: 'Number of Mobile Stations currently associated with the SSID/WLAN.'
               preprocessing:
                 - type: SNMP_WALK_VALUE
                   parameters:
                     - '1.3.6.1.4.1.14179.2.1.1.1.38.{#SNMPINDEX}'
                     - '0'
               master_item:
-                key: ssid.walk
+                key: wlc.ssid.walk
               tags:
                 - tag: component
                   value: ssid
                 - tag: ssid
                   value: '{#SSID_NAME}'
           master_item:
-            key: ssid.walk
+            key: wlc.ssid.walk
           preprocessing:
             - type: DISCARD_UNCHANGED_HEARTBEAT
               parameters:
@@ -281,7 +284,7 @@ zabbix_export:
           description: 'The expected number of connected accesspoints.'
       valuemaps:
         - uuid: 7e555ebdcb804c4cb9c4e65749d3e462
-          name: AP.OperationStatus
+          name: 'AP operational status'
           mappings:
             - value: '1'
               newvalue: associated
@@ -290,14 +293,14 @@ zabbix_export:
             - value: '3'
               newvalue: downloading
         - uuid: 6421959e2f7548fb81479eba69b887fe
-          name: ha.PeerHotStandbyEvent
+          name: 'HA peer state'
           mappings:
             - value: '0'
               newvalue: Active
             - value: '1'
               newvalue: 'Standby Hot'
         - uuid: d159f942acbe4451b6fd28e7c67dab08
-          name: ha.RedundancyOperMode
+          name: 'HA redundancy mode'
           mappings:
             - value: '1'
               newvalue: 'Non redundant'
@@ -305,8 +308,9 @@ zabbix_export:
               newvalue: sso
   triggers:
     - uuid: 5f9f887183134057b85ad09d2fd2fe26
-      expression: 'last(/Cisco WLC by SNMP/system.MaxApsSupported)=last(/Cisco WLC by SNMP/system.ApConnectCount)'
+      expression: 'last(/Cisco WLC by SNMP/wlc.ap.max)<=last(/Cisco WLC by SNMP/wlc.ap.count)'
       name: 'Cisco WLC: The maximum number of supported access points has been reached'
+      opdata: 'Limit: {ITEM.LASTVALUE1}, Count: {ITEM.LASTVALUE2}'
       priority: WARNING
       description: 'Please check the WLC.'
       tags:
@@ -321,10 +325,10 @@ zabbix_export:
       ymax_type_1: ITEM
       ymax_item_1:
         host: 'Cisco WLC by SNMP'
-        key: system.MaxApsSupported
+        key: wlc.ap.max
       graph_items:
         - drawtype: GRADIENT_LINE
           color: 00FF00
           item:
             host: 'Cisco WLC by SNMP'
-            key: system.ApConnectCount
+            key: wlc.ap.count
