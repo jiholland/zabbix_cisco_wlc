@@ -58,7 +58,7 @@ zabbix_export:
               value: cluster
           triggers:
             - uuid: 9c45ee2ef50b4dcc97cc485c862a2591
-              expression: 'change(/Cisco WLC by SNMP/cluster.ha.state)'
+              expression: 'change(/Cisco WLC by SNMP/cluster.ha.state)=1'
               name: 'Cisco WLC: HA peer changed state'
               opdata: 'Current state: {ITEM.LASTVALUE1}'
               priority: INFO
@@ -226,14 +226,14 @@ zabbix_export:
           master_item:
             key: wlc.accesspoint.walk
           preprocessing:
-            - type: DISCARD_UNCHANGED_HEARTBEAT
-              parameters:
-                - 1h
             - type: SNMP_WALK_TO_JSON
               parameters:
                 - '{#AP_NAME}'
                 - 1.3.6.1.4.1.14179.2.2.1.1.3
                 - '0'
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
         - uuid: 24ab1600a37941f196572e0ff4dd3b1f
           name: 'SSID discovery'
           type: DEPENDENT
@@ -260,17 +260,26 @@ zabbix_export:
                   value: ssid
                 - tag: ssid
                   value: '{#SSID_NAME}'
+          graph_prototypes:
+            - uuid: e2f3532d242248e5b3c1528ab02a9c7a
+              name: 'SSID {#SSID_NAME}: Number of clients'
+              graph_items:
+                - color: 199C0D
+                  calc_fnc: ALL
+                  item:
+                    host: 'Cisco WLC by SNMP'
+                    key: 'wlc.ssid.clients[bsnDot11EssNumberOfMobileStations.{#SNMPINDEX}]'
           master_item:
             key: wlc.ssid.walk
           preprocessing:
-            - type: DISCARD_UNCHANGED_HEARTBEAT
-              parameters:
-                - 1h
             - type: SNMP_WALK_TO_JSON
               parameters:
                 - '{#SSID_NAME}'
                 - 1.3.6.1.4.1.9.9.512.1.1.1.1.3
                 - '0'
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
       tags:
         - tag: class
           value: network
@@ -287,11 +296,11 @@ zabbix_export:
           name: 'AP operational status'
           mappings:
             - value: '1'
-              newvalue: associated
+              newvalue: Associated
             - value: '2'
-              newvalue: disassociating
+              newvalue: Disassociating
             - value: '3'
-              newvalue: downloading
+              newvalue: Downloading
         - uuid: 6421959e2f7548fb81479eba69b887fe
           name: 'HA peer state'
           mappings:
@@ -305,7 +314,7 @@ zabbix_export:
             - value: '1'
               newvalue: 'Non redundant'
             - value: '8'
-              newvalue: sso
+              newvalue: SSO
   triggers:
     - uuid: 5f9f887183134057b85ad09d2fd2fe26
       expression: 'last(/Cisco WLC by SNMP/wlc.ap.max)<=last(/Cisco WLC by SNMP/wlc.ap.count)'
