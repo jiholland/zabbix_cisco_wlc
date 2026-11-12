@@ -1,5 +1,5 @@
 zabbix_export:
-  version: '7.0'
+  version: '8.0'
   template_groups:
     - uuid: 36bff6c29af64692839d077febfc7079
       name: 'Templates/Network devices'
@@ -73,14 +73,14 @@ zabbix_export:
         - uuid: 0239c84bcee24b3188f90aa2313a1302
           name: 'SNMP walk access points'
           type: SNMP_AGENT
-          snmp_oid: 'walk[1.3.6.1.4.1.14179.2.2.1.1.3,1.3.6.1.4.1.14179.2.2.1.1.6]'
+          snmp_oid: 'walk[1.3.6.1.4.1.14179.2.2.1.1.3,1.3.6.1.4.1.14179.2.2.1.1.4,1.3.6.1.4.1.14179.2.2.1.1.6]'
           key: wlc.accesspoint.walk
           history: '0'
           value_type: TEXT
-          trends: '0'
           description: |
             Discover accesspoints:
             1.3.6.1.4.1.14179.2.2.1.1.3 = ap name
+            1.3.6.1.4.1.14179.2.2.1.1.4 = ap location
             1.3.6.1.4.1.14179.2.2.1.1.6 = ap operational state
           tags:
             - tag: component
@@ -99,40 +99,6 @@ zabbix_export:
               value: accesspoint
             - tag: component
               value: health
-          triggers:
-            - uuid: 77dfe68bf1334216a9f0a8f233b0ad41
-              expression: '((avg(/Cisco WLC by SNMP/wlc.ap.count,5m)/{$AP_COUNT})*100)<70'
-              name: 'Cisco WLC: More than 30% of the access points has disconnected'
-              opdata: 'Current count: {ITEM.LASTVALUE1}'
-              priority: AVERAGE
-              description: 'Please check the access point status.'
-              dependencies:
-                - name: 'Cisco WLC: More than 50% of the access points has disconnected'
-                  expression: '((avg(/Cisco WLC by SNMP/wlc.ap.count,5m)/{$AP_COUNT})*100)<50'
-              tags:
-                - tag: scope
-                  value: availability
-            - uuid: 3d11578ede5245ad9ff8d395e5a726c8
-              expression: '((avg(/Cisco WLC by SNMP/wlc.ap.count,5m)/{$AP_COUNT})*100)<50'
-              name: 'Cisco WLC: More than 50% of the access points has disconnected'
-              opdata: 'Current count: {ITEM.LASTVALUE1}'
-              priority: HIGH
-              description: 'Please check the access point status.'
-              dependencies:
-                - name: 'Cisco WLC: More than 90% of the access points has disconnected'
-                  expression: '((avg(/Cisco WLC by SNMP/wlc.ap.count,5m)/{$AP_COUNT})*100)<10'
-              tags:
-                - tag: scope
-                  value: availability
-            - uuid: d02004bc95494dda8b5fb39afa2eb9c4
-              expression: '((avg(/Cisco WLC by SNMP/wlc.ap.count,5m)/{$AP_COUNT})*100)<10'
-              name: 'Cisco WLC: More than 90% of the access points has disconnected'
-              opdata: 'Current count: {ITEM.LASTVALUE1}'
-              priority: DISASTER
-              description: 'Please check the access point status.'
-              tags:
-                - tag: scope
-                  value: availability
         - uuid: 7a686448175d45e8819acfb2e5421702
           name: 'Maximum number of supported access points'
           type: SNMP_AGENT
@@ -159,7 +125,6 @@ zabbix_export:
           delay: 10m
           history: '0'
           value_type: TEXT
-          trends: '0'
           description: |
             Discover ssid:
             1.3.6.1.4.1.9.9.512.1.1.1.1.3 = ssid name
@@ -172,14 +137,13 @@ zabbix_export:
           name: 'AP discovery'
           type: DEPENDENT
           key: wlc.ap.discovery
-          delay: '0'
+          enabled_lifetime_type: DISABLE_NEVER
           description: 'Discover accesspoints.'
           item_prototypes:
             - uuid: a23132b8879e40d296558ddd72b2b10b
               name: '{#AP_NAME}: Operational State'
               type: DEPENDENT
               key: 'wlc.accesspoint.state[bsnAPOperationStatus.{#SNMPINDEX}]'
-              delay: '0'
               trends: '0'
               description: 'Operation state of the AP.'
               valuemap:
@@ -189,37 +153,25 @@ zabbix_export:
                   parameters:
                     - '1.3.6.1.4.1.14179.2.2.1.1.6.{#SNMPINDEX}'
                     - '0'
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: '0'
               master_item:
                 key: wlc.accesspoint.walk
               tags:
-                - tag: accesspoint
-                  value: '{#AP_NAME}'
+                - tag: ap-location
+                  value: '{#AP_LOCATION}'
                 - tag: component
                   value: accesspoint
                 - tag: component
                   value: health
               trigger_prototypes:
-                - uuid: 9f92c1e2c22a4b999e1521d5ab813c9b
-                  expression: 'nodata(/Cisco WLC by SNMP/wlc.accesspoint.state[bsnAPOperationStatus.{#SNMPINDEX}],6m)=1'
-                  name: 'Cisco WLC: {#AP_NAME} has disconnected from WLC'
-                  priority: WARNING
-                  description: 'AP {#AP_NAME} has no heartbeats. Acknowledge to close the problem manually.'
-                  manual_close: 'YES'
-                  dependencies:
-                    - name: 'Cisco WLC: More than 30% of the access points has disconnected'
-                      expression: '((avg(/Cisco WLC by SNMP/wlc.ap.count,5m)/{$AP_COUNT})*100)<70'
-                  tags:
-                    - tag: scope
-                      value: availability
                 - uuid: a2109e151ff74fb2807f76fbd397ca84
-                  expression: 'last(/Cisco WLC by SNMP/wlc.accesspoint.state[bsnAPOperationStatus.{#SNMPINDEX}])<>1'
+                  expression: 'max(/Cisco WLC by SNMP/wlc.accesspoint.state[bsnAPOperationStatus.{#SNMPINDEX}],#3)<>1'
                   name: 'Cisco WLC: {#AP_NAME} is not operational'
+                  event_name: 'Cisco WLC: {#AP_NAME} is not operational (location: {#AP_LOCATION})'
                   opdata: 'Current state: {ITEM.LASTVALUE1}'
                   priority: WARNING
                   description: 'Please check the Access Point.'
-                  dependencies:
-                    - name: 'Cisco WLC: {#AP_NAME} has disconnected from WLC'
-                      expression: 'nodata(/Cisco WLC by SNMP/wlc.accesspoint.state[bsnAPOperationStatus.{#SNMPINDEX}],6m)=1'
                   tags:
                     - tag: scope
                       value: availability
@@ -231,21 +183,22 @@ zabbix_export:
                 - '{#AP_NAME}'
                 - 1.3.6.1.4.1.14179.2.2.1.1.3
                 - '0'
+                - '{#AP_LOCATION}'
+                - 1.3.6.1.4.1.14179.2.2.1.1.4
+                - '0'
             - type: DISCARD_UNCHANGED_HEARTBEAT
               parameters:
-                - 1h
+                - 2h
         - uuid: 24ab1600a37941f196572e0ff4dd3b1f
           name: 'SSID discovery'
           type: DEPENDENT
           key: wlc.ssid.discovery
-          delay: '0'
           description: 'Discover ssid.'
           item_prototypes:
             - uuid: a7bfeeea37914f30a46490b2f7caec16
               name: 'SSID {#SSID_NAME}: number of clients'
               type: DEPENDENT
               key: 'wlc.ssid.clients[bsnDot11EssNumberOfMobileStations.{#SNMPINDEX}]'
-              delay: '0'
               units: '!clients'
               description: 'Number of Mobile Stations currently associated with the SSID/WLAN.'
               preprocessing:
@@ -279,7 +232,7 @@ zabbix_export:
                 - '0'
             - type: DISCARD_UNCHANGED_HEARTBEAT
               parameters:
-                - 1h
+                - 4h
       tags:
         - tag: class
           value: network
@@ -287,10 +240,166 @@ zabbix_export:
           value: cisco
         - tag: target
           value: cisco-wlc
-      macros:
-        - macro: '{$AP_COUNT}'
-          value: '5'
-          description: 'The expected number of connected accesspoints.'
+      dashboards:
+        - uuid: d31e3688e7a4426e8a6bd1006f13d88d
+          name: 'Wifi overview'
+          pages:
+            - widgets:
+                - type: item
+                  name: 'HA redundancy mode'
+                  width: '13'
+                  height: '3'
+                  fields:
+                    - type: STRING
+                      name: bg_color
+                      value: FFCA28
+                    - type: INTEGER
+                      name: decimal_size
+                      value: '20'
+                    - type: STRING
+                      name: description
+                      value: Mode
+                    - type: STRING
+                      name: desc_color
+                      value: CFD8DC
+                    - type: INTEGER
+                      name: desc_size
+                      value: '10'
+                    - type: INTEGER
+                      name: desc_v_pos
+                      value: '0'
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'Cisco WLC by SNMP'
+                        key: cluster.ha.mode
+                    - type: INTEGER
+                      name: show.0
+                      value: '1'
+                    - type: INTEGER
+                      name: show.1
+                      value: '2'
+                    - type: STRING
+                      name: thresholds.0.color
+                      value: FFCA28
+                    - type: STRING
+                      name: thresholds.0.threshold
+                      value: '0'
+                    - type: STRING
+                      name: thresholds.1.color
+                      value: E65660
+                    - type: STRING
+                      name: thresholds.1.threshold
+                      value: '2'
+                    - type: STRING
+                      name: thresholds.2.color
+                      value: 0EC9AC
+                    - type: STRING
+                      name: thresholds.2.threshold
+                      value: '3'
+                    - type: INTEGER
+                      name: units_bold
+                      value: '0'
+                    - type: INTEGER
+                      name: units_size
+                      value: '20'
+                    - type: STRING
+                      name: value_color
+                      value: CFD8DC
+                    - type: INTEGER
+                      name: value_size
+                      value: '20'
+                - type: item
+                  name: 'HA peer state'
+                  'y': '3'
+                  width: '13'
+                  height: '3'
+                  fields:
+                    - type: STRING
+                      name: bg_color
+                      value: FFCA28
+                    - type: INTEGER
+                      name: decimal_size
+                      value: '20'
+                    - type: STRING
+                      name: description
+                      value: State
+                    - type: INTEGER
+                      name: desc_bold
+                      value: '1'
+                    - type: STRING
+                      name: desc_color
+                      value: CFD8DC
+                    - type: INTEGER
+                      name: desc_size
+                      value: '10'
+                    - type: INTEGER
+                      name: desc_v_pos
+                      value: '0'
+                    - type: ITEM
+                      name: itemid.0
+                      value:
+                        host: 'Cisco WLC by SNMP'
+                        key: cluster.ha.state
+                    - type: INTEGER
+                      name: show.0
+                      value: '1'
+                    - type: INTEGER
+                      name: show.1
+                      value: '2'
+                    - type: STRING
+                      name: thresholds.0.color
+                      value: FFCA28
+                    - type: STRING
+                      name: thresholds.0.threshold
+                      value: '0'
+                    - type: STRING
+                      name: thresholds.1.color
+                      value: FF465C
+                    - type: STRING
+                      name: thresholds.1.threshold
+                      value: '2'
+                    - type: STRING
+                      name: thresholds.2.color
+                      value: 0EC9AC
+                    - type: STRING
+                      name: thresholds.2.threshold
+                      value: '3'
+                    - type: INTEGER
+                      name: units_size
+                      value: '20'
+                    - type: STRING
+                      name: value_color
+                      value: CFD8DC
+                    - type: INTEGER
+                      name: value_size
+                      value: '20'
+                - type: graphprototype
+                  'y': '6'
+                  width: '48'
+                  height: '5'
+                  fields:
+                    - type: GRAPH_PROTOTYPE
+                      name: graphid.0
+                      value:
+                        host: 'Cisco WLC by SNMP'
+                        name: 'SSID {#SSID_NAME}: Number of clients'
+                    - type: STRING
+                      name: reference
+                      value: CZSEA
+                - type: graph
+                  x: '13'
+                  width: '35'
+                  height: '6'
+                  fields:
+                    - type: GRAPH
+                      name: graphid.0
+                      value:
+                        host: 'Cisco WLC by SNMP'
+                        name: 'Number of connected accesspoints'
+                    - type: STRING
+                      name: reference
+                      value: QGJCG
       valuemaps:
         - uuid: 7e555ebdcb804c4cb9c4e65749d3e462
           name: 'AP operational status'
@@ -301,6 +410,8 @@ zabbix_export:
               newvalue: Disassociating
             - value: '3'
               newvalue: Downloading
+            - value: '0'
+              newvalue: Down
         - uuid: 6421959e2f7548fb81479eba69b887fe
           name: 'HA peer state'
           mappings:
